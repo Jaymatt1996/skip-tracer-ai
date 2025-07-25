@@ -2,68 +2,73 @@ import streamlit as st
 import pandas as pd
 import requests
 
-st.set_page_config(page_title="Skip Tracer AI", layout="wide")
+st.title("Skip Tracer AI")
 
-st.title("🔍 Skip Tracer AI")
-st.markdown("Upload an Excel file with columns: `First Name`, `Last Name`, `City`, `State`")
-
-uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
-
+uploaded_file = st.file_uploader("Upload Excel File", type=["xlsx"])
 API_KEY = "5a4d8cf64a39b467481f67f17d1091fe186ae55ab2923a953003e8d84f07a7c5"
 
-def query_people_data_labs(first_name, last_name, city, state):
-    url = "https://api.peopledatalabs.com/v5/person/enrich"
-    headers = {
-        "Content-Type": "application/json",
-        "X-Api-Key": API_KEY
-    }
-    payload = {
-        "first_name": first_name,
-        "last_name": last_name,
-        "location": f"{city}, {state}"
-    }
-    response = requests.post(url, headers=headers, json=payload)
-    if response.status_code == 200:
-        return response.json().get("data", {})
-    else:
-        return {}
-
-if uploaded_file is not None:
+if uploaded_file:
     df = pd.read_excel(uploaded_file)
-    
-    required_columns = {"First Name", "Last Name", "City", "State"}
-    if not required_columns.issubset(set(df.columns)):
-        st.error("Excel must contain columns: First Name, Last Name, City, State")
+
+    required_columns = ["Owner 1 First Name", "Owner 1 Last Name", "Property City", "Prop State"]
+    if not all(col in df.columns for col in required_columns):
+        st.error(f"Excel must contain columns: {', '.join(required_columns)}")
     else:
         results = []
-        for index, row in df.iterrows():
-            first_name = row["First Name"]
-            last_name = row["Last Name"]
-            city = row["City"]
-            state = row["State"]
-            
-            person = query_people_data_labs(first_name, last_name, city, state)
-            
-            results.append({
-                "First Name": first_name,
-                "Last Name": last_name,
-                "Location": f"{city}, {state}",
-                "Phone": person.get("phone_numbers", [None])[0] if person.get("phone_numbers") else "",
-                "Email": person.get("emails", [None])[0] if person.get("emails") else "",
-                "LinkedIn": person.get("linkedin_url", ""),
-                "Company": person.get("job_company_name", "")
-            })
+
+        for _, row in df.iterrows():
+            first_name = row["Owner 1 First Name"]
+            last_name = row["Owner 1 Last Name"]
+            city = row["Property City"]
+            state = row["Prop State"]
+
+            full_name = f"{first_name} {last_name}".strip()
+
+            response = requests.get(
+                "https://api.peopledatalabs.com/v5/person/enrich",
+                headers={"Content-Type": "application/json"},
+                params={
+                    "api_key": API_KEY,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "location": f"{city}, {state}"
+                }
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") != 404:
+                    person = data
+                    results.append({
+                        "Full Name": full_name,
+                        "Phone": person.get("phone_numbers", [None])[0],
+                        "Email": person.get("emails", [None])[0],
+                        "LinkedIn": person.get("linkedin_url"),
+                        "Location": person.get("location")
+                    })
+                else:
+                    results.append({
+                        "Full Name": full_name,
+                        "Phone": None,
+                        "Email": None,
+                        "LinkedIn": None,
+                        "Location": None
+                    })
+            else:
+                results.append({
+                    "Full Name": full_name,
+                    "Phone": None,
+                    "Email": None,
+                    "LinkedIn": None,
+                    "Location": None
+                })
 
         result_df = pd.DataFrame(results)
         st.dataframe(result_df)
 
-        @st.cache_data
-        def convert_df(df):
-            return df.to_excel(index=False, engine="openpyxl")
-
         st.download_button(
-            label="📥 Download Results as Excel",
-            data=convert_df(result_df),
+            label="Download Results as Excel",
+            data=result_df.to_excel(index=False),
             file_name="skip_traced_results.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
