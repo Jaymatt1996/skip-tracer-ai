@@ -77,7 +77,7 @@ df.to_excel(output, index=False, engine="openpyxl")
 return output.getvalue()
 
         st.download_button(
-           import io
+import io
 
 @st.cache_data
 def convert_df(df):
@@ -85,20 +85,13 @@ def convert_df(df):
     df.to_excel(output, index=False, engine="openpyxl")
     return output.getvalue()
 
-# ⬇️ Download button
-st.download_button(
-    import io
-
-@st.cache_data
-def convert_df(df):
-    output = io.BytesIO()
-    df.to_excel(output, index=False, engine="openpyxl")
-    return output.getvalue()
-
-if result_df is not None:
+# Show download button only if results exist
+if result_df is not None and not result_df.empty:
     st.download_button(
         label="📥 Download Results as Excel",
         data=convert_df(result_df),
         file_name="skip_traced_results.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+
