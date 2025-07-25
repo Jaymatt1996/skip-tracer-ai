@@ -77,8 +77,18 @@ df.to_excel(output, index=False, engine="openpyxl")
 return output.getvalue()
 
         st.download_button(
-            label="📥 Download Results as Excel",
-            data=convert_df(result_df),
-            file_name="skip_traced_results.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+           import io
+
+@st.cache_data
+def convert_df(df):
+    output = io.BytesIO()
+    df.to_excel(output, index=False, engine="openpyxl")
+    return output.getvalue()
+
+# ⬇️ Download button
+st.download_button(
+    label="📥 Download Results as Excel",
+    data=convert_df(result_df),
+    file_name="skip_traced_results.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
