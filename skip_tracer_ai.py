@@ -1,10 +1,9 @@
-import os
 import streamlit as st
 import pandas as pd
 import requests
-import time
-import io
+import openpyxl
 
+API_KEY = st.secrets["API_KEY"]
 st.set_page_config(page_title="AI Skip Tracer", layout="wide")
 st.title("🔍 AI Skip Tracing Assistant")
 st.markdown(
