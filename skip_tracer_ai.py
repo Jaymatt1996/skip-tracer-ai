@@ -1,74 +1,94 @@
 import streamlit as st
 import pandas as pd
 import requests
+import io
 
-st.title("Skip Tracer AI")
+st.set_page_config(page_title="Skip Tracer AI", layout="centered")
 
-uploaded_file = st.file_uploader("Upload Excel File", type=["xlsx"])
-API_KEY = "5a4d8cf64a39b467481f67f17d1091fe186ae55ab2923a953003e8d84f07a7c5"
+st.title("📍 Skip Tracer AI")
+st.write("Upload an Excel file with owner name and location info, and we'll help find matching contact info.")
+
+API_KEY = "YOUR_API_KEY_HERE"  # Replace this with your actual People Data Labs API key
+
+# Upload Excel file
+uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    required_columns = ["Owner 1 First Name", "Owner 1 Last Name", "Property City", "Prop State"]
+    # Rename columns to match what the app expects
+    df = df.rename(columns={
+        "Owner 1 First Name": "First Name",
+        "Owner 1 Last Name": "Last Name",
+        "Property City": "City",
+        "Prop State": "State"
+    })
+
+    required_columns = ["First Name", "Last Name", "City", "State"]
+
     if not all(col in df.columns for col in required_columns):
-        st.error(f"Excel must contain columns: {', '.join(required_columns)}")
+        st.error("Your file must contain these columns: First Name, Last Name, City, State")
     else:
         results = []
 
-        for _, row in df.iterrows():
-            first_name = row["Owner 1 First Name"]
-            last_name = row["Owner 1 Last Name"]
-            city = row["Property City"]
-            state = row["Prop State"]
+        st.info("🔎 Searching... Please wait a few moments.")
 
-            full_name = f"{first_name} {last_name}".strip()
+        for index, row in df.iterrows():
+            first_name = str(row["First Name"]).strip()
+            last_name = str(row["Last Name"]).strip()
+            city = str(row["City"]).strip()
+            state = str(row["State"]).strip()
 
-            response = requests.get(
-                "https://api.peopledatalabs.com/v5/person/enrich",
-                headers={"Content-Type": "application/json"},
-                params={
-                    "api_key": API_KEY,
-                    "first_name": first_name,
-                    "last_name": last_name,
-                    "location": f"{city}, {state}"
-                }
-            )
+            full_name = f"{first_name} {last_name}"
 
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("status") != 404:
-                    person = data
+            query = {
+                "api_key": API_KEY,
+                "first_name": first_name,
+                "last_name": last_name,
+                "location": f"{city}, {state}"
+            }
+
+            try:
+                response = requests.get("https://api.peopledatalabs.com/v5/person/enrich", params=query)
+                if response.status_code == 200:
+                    person = response.json()
                     results.append({
-                        "Full Name": full_name,
+                        "Name": full_name,
+                        "City": city,
+                        "State": state,
                         "Phone": person.get("phone_numbers", [None])[0],
-                        "Email": person.get("emails", [None])[0],
-                        "LinkedIn": person.get("linkedin_url"),
-                        "Location": person.get("location")
+                        "Email": person.get("emails", [None])[0]
                     })
                 else:
                     results.append({
-                        "Full Name": full_name,
+                        "Name": full_name,
+                        "City": city,
+                        "State": state,
                         "Phone": None,
-                        "Email": None,
-                        "LinkedIn": None,
-                        "Location": None
+                        "Email": None
                     })
-            else:
+            except Exception as e:
                 results.append({
-                    "Full Name": full_name,
+                    "Name": full_name,
+                    "City": city,
+                    "State": state,
                     "Phone": None,
-                    "Email": None,
-                    "LinkedIn": None,
-                    "Location": None
+                    "Email": None
                 })
 
         result_df = pd.DataFrame(results)
+        st.success("✅ Search complete!")
+
         st.dataframe(result_df)
 
+        # Save to Excel
+        output = io.BytesIO()
+        result_df.to_excel(output, index=False)
+        output.seek(0)
+
         st.download_button(
-            label="Download Results as Excel",
-            data=result_df.to_excel(index=False),
+            label="📥 Download Results as Excel",
+            data=output,
             file_name="skip_traced_results.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
