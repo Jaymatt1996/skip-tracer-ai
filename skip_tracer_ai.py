@@ -71,7 +71,10 @@ if uploaded_file:
 
         @st.cache_data
         def convert_df(df):
-            return df.to_excel(index=False, engine="openpyxl")
+            import io
+output = io.BytesIO()
+df.to_excel(output, index=False, engine="openpyxl")
+return output.getvalue()
 
         st.download_button(
             label="📥 Download Results as Excel",
