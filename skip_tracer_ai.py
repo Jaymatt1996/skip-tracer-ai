@@ -1,73 +1,61 @@
 import streamlit as st
 import pandas as pd
 import requests
-import json
-from io import BytesIO
+import io
 
-st.set_page_config(page_title="Skip Tracer AI", layout="centered")
+# Replace this with your actual PeopleDataLabs API Key
+API_KEY = "5a4d8cf64a39b467481f67f17d1091fe186ae55ab2923a953003e8d84f07a7c5"
 
+
+st.set_page_config(page_title="Skip Tracer AI", layout="wide")
 st.title("📍 Skip Tracer AI")
-st.markdown("Upload an Excel sheet with names and addresses to find relatives or executors.")
+uploaded_file = st.file_uploader("Upload your Excel file (.xlsx)", type=["xlsx"])
 
-uploaded_file = st.file_uploader("📤 Upload Excel File", type=["xlsx"])
-
-API_KEY = st.secrets["API_KEY"]  # Make sure it's in Streamlit secrets
-
-def skip_trace_person(first_name, last_name, city=None, state=None):
-    url = "https://api.peopledatalabs.com/v5/person/enrich"
-    headers = {
-        "Content-Type": "application/json",
-        "X-Api-Key": API_KEY
-    }
-    payload = {
-        "first_name": first_name,
-        "last_name": last_name,
-        "location": f"{city}, {state}" if city and state else ""
-    }
-
-    response = requests.post(url, headers=headers, data=json.dumps(payload))
-    if response.status_code == 200:
-        return response.json()
-    else:
-        return {}
-
-@st.cache_data
-def convert_df(df):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False)
-    processed_data = output.getvalue()
-    return processed_data
-
-if uploaded_file:
+if uploaded_file and st.button("Start Skip Tracing"):
     df = pd.read_excel(uploaded_file)
-    st.write("✅ File Uploaded Successfully:")
-    st.dataframe(df.head())
+    results = []
 
-    if st.button("🚀 Start Skip Tracing"):
-        result_data = []
+    for index, row in df.iterrows():
+        first_name = str(row.get("Owner 1 First Name", "")).strip()
+        last_name = str(row.get("Owner 1 Last Name", "")).strip()
+        city = str(row.get("Property City", "")).strip()
+        state = str(row.get("Prop State", "")).strip()
 
-        for _, row in df.iterrows():
-            first = row.get("First Name", "")
-            last = row.get("Last Name", "")
-            city = row.get("City", "")
-            state = row.get("State", "")
+        if not first_name or not last_name:
+            continue
 
-            if pd.notna(first) and pd.notna(last):
-                info = skip_trace_person(first, last, city, state)
-                result_data.append({
-                    "First Name": first,
-                    "Last Name": last,
-                    "City": city,
-                    "State": state,
-                    "Relatives": info.get("relatives", []),
-                    "Phones": info.get("phone_numbers", []),
-                    "Emails": info.get("emails", [])
+        params = {
+            "api_key": API_KEY,
+            "first_name": first_name,
+            "last_name": last_name,
+            "location": f"{city}, {state}",
+        }
+
+        response = requests.get("https://api.peopledatalabs.com/v5/person/enrich", params=params)
+
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == 200 and "data" in data:
+                person = data["data"]
+                results.append({
+                    "First Name": first_name,
+                    "Last Name": last_name,
+                    "Location": f"{city}, {state}",
+                    "Phone": person.get("phone_numbers", [None])[0],
+                    "Email": person.get("emails", [None])[0],
+                    "LinkedIn": person.get("linkedin_url", ""),
+                    "Company": person.get("job_company_name", "")
                 })
 
-        result_df = pd.DataFrame(result_data)
-        st.write("📊 Skip Trace Results:")
-        st.dataframe(result_df)
+    if results:
+        result_df = pd.DataFrame(results)
+
+        @st.cache_data
+        def convert_df(df):
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                df.to_excel(writer, index=False)
+            return output.getvalue()
 
         st.download_button(
             label="📥 Download Results as Excel",
@@ -75,3 +63,5 @@ if uploaded_file:
             file_name="skip_traced_results.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+    else:
+        st.warning("No results found. Try different names or locations.")
