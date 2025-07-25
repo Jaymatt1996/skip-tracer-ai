@@ -8,7 +8,7 @@ st.set_page_config(page_title="Skip Tracer AI", layout="centered")
 st.title("📍 Skip Tracer AI")
 st.write("Upload an Excel file with owner name and location info, and we'll help find matching contact info.")
 
-(API_KEY = "5a4d8cf64a39b467481f67f17d1091fe186ae55ab2923a953003e8d84f07a7c5"  # Replace with your actual People Data Labs API key)
+API_KEY = "5a4d8cf64a39b467481f67f17d1091fe186ae55ab2923a953003e8d84f07a7c5"  # Replace with your actual People Data Labs API key
 
 uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
 
